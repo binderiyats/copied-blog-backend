@@ -1,6 +1,7 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const cors = require('cors');
+import { nanoid } from 'nanoid';
+import express from 'express';
+import bodyParser from 'body-parser';
+import cors from 'cors';
 const app = express();
 const port = 8000;
 
@@ -61,74 +62,95 @@ let articles = [
     },
 ];
 
+let users = [{ id: 1, email: 'enrosek95@gmail.com', password: 'Kingenrose123~', token: nanoid() }];
+
+let curUser;
+
 app.use(cors());
 app.use(bodyParser.json());
+
+const checkToken = (token) => {
+    let result = false;
+
+    users.map((user) => {
+        if (user.token === token) result = true;
+    });
+
+    return result;
+};
+
+// Categories Routes
 
 app.get('/categories', (req, res) => {
     res.status(200);
     res.json(categories);
 });
 
+app.get('/categories/:id', (req, res) => {
+    let { id } = req.params;
+    id = Number(id);
+    let category;
+
+    for (let cat of categories) {
+        if (cat.id === id) {
+            category = cat;
+            break;
+        }
+    }
+
+    res.json(category);
+});
+
 app.post('/categories', (req, res) => {
+    if (!curUser) return res.status(401).send(`Unauthorized account`);
+
+    if (!checkToken(req.headers.authorization)) return res.status(403).send(`Invalid token`);
+
     const newCategory = { id: categories[categories.length - 1].id + 1, ...req.body };
     categories.push(newCategory);
     res.json(newCategory);
 });
 
-app.patch('/categories', (req, res) => {
+app.patch('/categories/:id', (req, res) => {
+    if (!curUser) return res.status(401).send(`Unauthorized account`);
+
+    if (!checkToken(req.headers.authorization)) return res.status(403).send(`Invalid token`);
+
+    let { id } = req.params;
+    id = Number(id);
     categories = categories.map((category) => {
-        if (category.id === req.body.id) return req.body;
+        if (category.id === id) return { id, ...req.body };
         return category;
     });
 
-    res.json(req.body);
+    res.json({ id, ...req.body });
 });
 
-app.delete('/categories', (req, res) => {
-    const { id } = req.body;
-    let index;
-    categories.map((category, ind) => {
-        if (category.id === id) index = ind;
+app.delete('/categories/:id', (req, res) => {
+    if (!curUser) return res.status(401).send(`Unauthorized account`);
+
+    if (!checkToken(req.headers.authorization)) return res.status(403).send(`Invalid token`);
+
+    let { id } = req.params;
+    id = Number(id);
+
+    categories = categories.filter((category) => {
+        if (category.id !== id) return category;
     });
 
-    categories.splice(index, 1);
+    res.json(id);
 });
+
+// Articles Routes
 
 app.get('/articles', (req, res) => {
     res.status(200);
     res.json(articles);
 });
 
-app.post('/articles', (req, res) => {
-    const newArticle = { id: articles[articles.length - 1].id + 1, ...req.body };
-    articles.push(newArticle);
-    res.json(newArticle);
-});
-
-app.patch('/articles', (req, res) => {
-    articles = articles.map((article) => {
-        if (article.id === req.body.id) return req.body;
-        return article;
-    });
-
-    res.json(req.body);
-});
-
-app.delete('/articles', (req, res) => {
-    const { id } = req.body;
-    let index;
-    articles.map((article, ind) => {
-        if (article.id === id) index = ind;
-    });
-
-    articles.splice(index, 1);
-
-    res.json('Success');
-});
-
 app.get('/articles/:id', (req, res) => {
     const { id } = req.params;
-    let newArticle = {};
+    let newArticle;
     for (let article of articles) {
         if (article.id === Number(id)) {
             newArticle = article;
@@ -139,7 +161,47 @@ app.get('/articles/:id', (req, res) => {
     res.json(newArticle);
 });
 
-app.get('/categories/:id', (req, res) => {
+app.post('/articles', (req, res) => {
+    if (!curUser) return res.status(401).send(`Unauthorized account`);
+
+    if (!checkToken(req.headers.authorization)) return res.status(403).send(`Invalid token`);
+
+    const newArticle = { id: articles[articles.length - 1].id + 1, ...req.body };
+    articles.push(newArticle);
+    res.json(newArticle);
+});
+
+app.patch('/articles/:id', (req, res) => {
+    if (!curUser) return res.status(401).send(`Unauthorized account`);
+
+    if (!checkToken(req.headers.authorization)) return res.status(403).send(`Invalid token`);
+
+    let { id } = req.params;
+    id = Number(id);
+    articles = articles.map((article) => {
+        if (article.id === id) return { id, ...req.body };
+        return article;
+    });
+
+    res.json({ id, ...req.body });
+});
+
+app.delete('/articles/:id', (req, res) => {
+    if (!curUser) return res.status(401).send(`Unauthorized account`);
+
+    if (!checkToken(req.headers.authorization)) return res.status(403).send(`Invalid token`);
+
+    let { id } = req.body;
+    id = Number(id);
+
+    articles = articles.filter((article) => {
+        if (article.id !== id) return article;
+    });
+
+    res.json(id);
+});
+
+app.get('/articles/categories/:id', (req, res) => {
     const { id } = req.params;
 
     res.json(
@@ -147,6 +209,140 @@ app.get('/categories/:id', (req, res) => {
             if (article.categoryId === Number(id)) return article;
         })
     );
+});
+
+// Users Routes
+app.get('/users', (req, res) => {
+    res.send(users);
+});
+
+app.post('/signin', (req, res) => {
+    const { email, password } = req.body;
+    let isExists = false;
+
+    users.map((user) => {
+        if (user.email === email) {
+            isExists = true;
+            curUser = user;
+        }
+    });
+
+    if (!isExists) {
+        res.status(404).send({
+            message: `User didn't found`,
+        });
+    }
+
+    if (curUser.email !== email || curUser.password !== password) {
+        res.status(400).send({
+            message: "Email or password doesn't match",
+        });
+    }
+
+    res.send({
+        message: 'Success',
+        body: curUser.token,
+    });
+});
+
+app.post('/signup', (req, res) => {
+    const lowerLetters = 'abcdefghijklmnopqrstuvwxyz';
+    const upperLetters = lowerLetters.toUpperCase();
+    const numbers = '0123456789';
+    const specials = '@$!%*#?&.~';
+
+    const checkLowerLetters = (pass) => {
+        let result = false;
+        for (let letter of lowerLetters) {
+            if (pass.includes(letter)) {
+                result = true;
+                break;
+            }
+        }
+
+        return result;
+    };
+
+    const checkUpperLetters = (pass) => {
+        let result = false;
+        for (let letter of upperLetters) {
+            if (pass.includes(letter)) {
+                result = true;
+                break;
+            }
+        }
+
+        return result;
+    };
+
+    const checkNumbers = (pass) => {
+        let result = false;
+        for (let letter of numbers) {
+            if (pass.includes(letter)) {
+                result = true;
+                break;
+            }
+        }
+
+        return result;
+    };
+
+    const checkSpecials = (pass) => {
+        let result = false;
+        for (let letter of specials) {
+            if (pass.includes(letter)) {
+                result = true;
+                break;
+            }
+        }
+
+        return result;
+    };
+
+    const checkPassword = (pass) => {
+        if (
+            checkLowerLetters(pass) &&
+            checkUpperLetters(pass) &&
+            checkNumbers(pass) &&
+            checkSpecials(pass) &&
+            pass.length > 8
+        )
+            return true;
+
+        return false;
+    };
+
+    const { email, password, repassword } = req.body;
+
+    for (let user of users) {
+        if (user.email === email) return res.status(400).send({ message: `Email already exists` });
+    }
+
+    if (password !== repassword)
+        return res.status(400).send({ message: `Password doesn't match with repeated password` });
+
+    if (!checkPassword(password)) return res.status(400).send({ message: `Password requirement invalid` });
+
+    if (!password.includes('@') || !password.includes('.'))
+        return res.status(400).send({ message: `Email type is wrong!` });
+
+    const newUser = {
+        id: users[users.length - 1].id + 1,
+        email,
+        password,
+        token: nanoid(),
+    };
+
+    users.push(newUser);
+
+    res.send({
+        message: `Success`,
+        body: newUser,
+    });
+});
+
+app.post('/users/me', (req, res) => {
+    res.json(curUser);
 });
 
 app.listen(port, () => console.log(`Server is running at http://localhost:${port}`));
