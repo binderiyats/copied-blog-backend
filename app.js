@@ -191,7 +191,7 @@ app.delete('/articles/:id', (req, res) => {
 
     if (!checkToken(req.headers.authorization)) return res.status(403).send(`Invalid token`);
 
-    let { id } = req.body;
+    let { id } = req.params;
     id = Number(id);
 
     articles = articles.filter((article) => {
